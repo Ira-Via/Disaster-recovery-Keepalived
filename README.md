@@ -20,10 +20,104 @@
 sudo apt update
 sudo apt install nginx -y
 ```
-1. Установка Keepalived
-2. Настройка конфигурационного файла Keepalived
-3. Написание Bash-скрипта для проверки веб-сервера
-   Создайте Bash-скрипт /usr/local/bin/check_nginx.sh:
-4. Запуск Keepalived
-5. Проверка работы
-# Задание 3*
+Настройка index.html  <br/>
+```bash
+echo "<h1>Hello from $(hostname)</h1>" | sudo tee /var/www/html/index.html
+```
+2. Установка Keepalived  <br/>
+```bash
+sudo apt install keepalived -y
+```
+3. Настройка конфигурационного файла Keepalived  <br/>
+Для ВМ1:  <br/>
+```bash
+! Configuration File
+
+global_defs {
+   router_id VM1
+}
+
+vrrp_instance VI_1 {
+    state MASTER
+    interface eth0    
+    virtual_router_id 51
+    priority 100     
+    advert_int 1
+    authentication {
+        auth_type PASS
+        auth_pass 1234
+    }
+    virtual_ipaddress {
+        192.168.1.100 
+    }
+    track_script {
+        check_web
+    }
+}
+
+vrrp_script check_web {
+    script "/usr/local/bin/check_nginx.sh"
+    interval 3
+    weight -2
+}
+```
+Для ВМ2:  <br/>
+```bash
+! Configuration File
+
+global_defs {
+   router_id VM2
+}
+
+vrrp_instance VI_1 {
+    state BACKUP
+    interface eth0
+    virtual_router_id 51
+    priority 90       # Приоритет для BACKUP
+    advert_int 1
+    authentication {
+        auth_type PASS
+        auth_pass 1234
+    }
+    virtual_ipaddress {
+        192.168.1.100
+    }
+    track_script {
+        check_web
+    }
+}
+
+vrrp_script check_web {
+    script "/usr/local/bin/check_nginx.sh"
+    interval 3
+    weight -2
+}
+```
+4. Написание Bash-скрипта для проверки веб-сервера  <br/>
+   Создание Bash-скрипт `/usr/local/bin/check_nginx.sh`:  <br/>
+```bash
+#!/bin/bash
+PORT=80
+HOST=localhost
+FILE="/var/www/html/index.html"
+if ! nc -z $HOST $PORT; then
+    exit 1
+fi
+if [ ! -f $FILE ]; then
+    exit 1
+fi
+exit 0
+```
+Сделать скрипт исполняемым:
+```bash
+sudo chmod +x /usr/local/bin/check_nginx.sh
+```
+5. Запуск Keepalived
+```bash
+sudo systemctl start keepalived
+sudo systemctl enable keepalived
+```
+6. Проверка работы
+```bash
+sudo systemctl stop nginx
+```
